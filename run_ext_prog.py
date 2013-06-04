@@ -39,7 +39,10 @@ class runExtProg(object):
         self.program_name = p
         self.init_switch(length)
         self.cwd = pdir
+        self.stdin = None
 
+    def set_stdin(self, stdin):
+        self.stdin = stdin
 
     def set_param_at(self, param, position):
         self._switch[position - 1] = str(param)
@@ -65,9 +68,16 @@ class runExtProg(object):
         self._command = [self.program_name]
         self._command.extend(self._switch)
         if debug:
-            print("debug: _command:\t%s" % (self._command))
-        p = subprocess.Popen(self._command, stdout=subprocess.PIPE,
+            print("debug: _command:\t%s < %s" % (self._command, self.stdin))
+
+        if self.stdin :
+            with open(self.stdin, 'r') as infile:
+                p = subprocess.Popen(self._command, stdin=infile, stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE, cwd=self.cwd)
+        else:
+            p = subprocess.Popen(self._command, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, cwd=self.cwd)
+
         self.output, self.errors = p.communicate()
 
         if debug is 2:
