@@ -82,16 +82,16 @@ def on_sam(list_sam_field):
         return
 
     sam_qname = list_sam_field[0]
-#    sam_flag = int(list_sam_field[1])
+    sam_flag = int(list_sam_field[1])
     sam_rname = list_sam_field[2]
     sam_pos = int(list_sam_field[3])
-#    sam_mapq = int(list_sam_field[4])
+    sam_mapq = int(list_sam_field[4])
     sam_cigar = list_sam_field[5]
-#    sam_rnext = list_sam_field[6]
-#    sam_pnext = int(list_sam_field[7])
-#    sam_tlen = int(list_sam_field[8])
+    sam_rnext = list_sam_field[6]
+    sam_pnext = int(list_sam_field[7])
+    sam_tlen = int(list_sam_field[8])
     sam_seq = list_sam_field[9]
-#    sam_qual = list_sam_field[10]
+    sam_qual = list_sam_field[10]
 
     if(sam_pos < 1):
         # Unmapped read
@@ -99,7 +99,7 @@ def on_sam(list_sam_field):
 
     if(sam_rname != g_ref_name):
         print sam_rname, len(sam_rname), g_ref_name, len(g_ref_name)
-        return
+#         return
 
     index_seq_current = 0
     seq_current = ""
@@ -110,7 +110,9 @@ def on_sam(list_sam_field):
         cigar_number = tuple_cigar[0]
         cigar_character = tuple_cigar[1]
 
-        if(cigar_character == "M"):
+#         if(cigar_character == "M"):
+        if (cigar_character == "M" or cigar_character == "=" or cigar_character == "X"):
+#         if (cigar_character == "M"):
             # Matched
             seq_matched = sam_seq[index_seq_current:index_seq_current + cigar_number]
             seq_current += seq_matched
@@ -142,7 +144,7 @@ def on_sam(list_sam_field):
             print "Error, padding"  # , list_fields
             g_count_error += 1
         else:
-            print "Error, unknown"  # , list_fields
+            print "Error, unknown"  , list_sam_field
             g_count_error += 1
 
         is_first_cigar = False
@@ -174,6 +176,10 @@ def read_sam_file(file_in, callback):
         line = line.rstrip("\n\r")
         if(len(line) == 0):
             continue
+        if(line.startswith("@")):
+            print "skip", line
+            continue
+
         list_sam_field = line.split()
         if(len(list_sam_field) < MANDATORY_NUMBER_OF_SAM_FIELDS):
             continue

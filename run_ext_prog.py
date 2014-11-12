@@ -44,8 +44,12 @@ class runExtProg(object):
     def set_stdin(self, stdin):
         self.stdin = stdin
 
-    def set_param_at(self, param, position):
-        self._switch[position - 1] = str(param)
+    def set_param_at(self, param, position):  # # for order specific program without parameters
+        index = position - 1
+        if(len(self._switch) <= index):
+            self.add_switch(str(param))
+        else:
+            self._switch[position - 1] = str(param)
 
     def init_switch(self, leng):
         self._switch = [None] * leng
@@ -87,10 +91,13 @@ class runExtProg(object):
                   (self.output, self.errors))
 
 
+    def add_param(self, s):
+        self.add_switch(s)
 
     def add_switch(self, s):
         if isinstance(s, str):
-            self._switch.append(s)
+            for p in s.split():
+                self._switch.append(p)
         elif isinstance(s, list):
             self._switch.extend(s)
 #        print "add_switch: ",s,"\t==",self._switch

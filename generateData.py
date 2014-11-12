@@ -12,9 +12,12 @@ import shutil
 
 MATCH_TREE_NODE = re.compile("(\d+\.)(\d+)(\.\d+)")
 
-dataDir = "/home/sw167/Postdoc/Project_Srp/simulateData/"
-softwareDir = "/home/sw167/Postdoc/Project_Srp/software/"
+projectDir = "/home/steven/Postdoc/Project_Srp/"
+
+dataDir = projectDir + "simulateData/"
+softwareDir = projectDir + "software/"
 metaSimDir = softwareDir + "metaSim/"
+artDir = softwareDir + ""
 seqgenDir = softwareDir + "SeqGen/"
 shrimpDir = softwareDir + "SHRiMP/bin/"
 bsscDir = softwareDir + "BSSC/"
@@ -24,17 +27,23 @@ def runBSSC(workingFile, srp_tree_file, debug):
 
     bssc = runExtProg(bsscDir + "BSSC_original", pdir=bsscDir, length=3)
     bssc.set_param_at("-f", 1)
-    bssc.set_param_at(workingFile + ".par", 2)
+    bssc.set_param_at(workingFile + "_BSSC.par", 2)
     bssc.set_param_at(1, 3)
-    bssc.run(debug)
 
-    bssc_paup_result = workingFile + ".paup"
-    bssc_tree_result = workingFile + "_true_trees.trees"
+    bssc_paup_result = workingFile + "_BSSC.paup"
+#     bssc_tree_result = workingFile + "_true_trees.trees"
+
+    try:
+        os.remove(bssc_paup_result)
+#         os.remove(workingFile + "_0.pau")
+    except OSError:
+        pass
+
     while not os.path.exists(bssc_paup_result):
         bssc.run()
 
-
-    input_handle = open(bssc_tree_result, "rU")
+#     input_handle = open(bssc_tree_result, "rU")
+    input_handle = open(bssc_paup_result, "rU")
     for line in input_handle:
         if line.find("tree true_tree_1") > 0:
             line = line.strip()
@@ -62,7 +71,7 @@ def runBSSC(workingFile, srp_tree_file, debug):
 
     output_handle = open(workingFile + "_seqgen.phylip", "w")
     output_handle.write("1 1200\n")
-    output_handle.write("%s %s\n" % (seq.id, seq.seq))
+    output_handle.write("%s %s\n" % ("ancestor", seq.seq))
     output_handle.write("1\n")
     Phylo.write(tree, output_handle, "newick")
     output_handle.close()
@@ -76,20 +85,27 @@ def runBSSC(workingFile, srp_tree_file, debug):
 #    print os.remove(bssc_paup_result)
 #    print os.path.exists(bssc_paup_result)
 
-def runSeqGen(workingFile, srp_hap_file, debug):
+def runSeqGen(workingFile, srp_hap_file, srp_tree_file, debug):
 
     seqgen_infile = workingFile + "_seqgen.phylip"
-    seqgen = runExtProg(seqgenDir + "./seq-gen", pdir=seqgenDir, length=4)
+    seqgen = runExtProg(seqgenDir + "./seq-gen", pdir=seqgenDir, length=3)
     seqgen.set_param_at("-mHKY", 1)
     seqgen.set_param_at("-t2", 2)
     seqgen.set_param_at("-k1", 3)
-    seqgen.set_param_at("-d0.1", 4)
+#     seqgen.set_param_at("-d0.1", 4)
     # seqgen.set_param_at("-s0.00001", 4)
     seqgen.set_stdin(seqgen_infile)
 
     all_unique = False
+    repeat = 0
     while not all_unique:
-        seqgen.run(debug)
+        if repeat == 100:
+            runBSSC(workingFile, srp_tree_file, debug)
+            print "==========rerun BSSC========"
+            repeat = 0
+        repeat += 1
+#        print repeat
+        seqgen.run(0)
         all_unique = check_unique_sequences(seqgen)
 
 
@@ -130,7 +146,7 @@ def runMetaSim(workingFile, workingDir, debug):
     metaSim.set_param_at("--454", 2)
     metaSim.set_param_at("-f250", 3)
     metaSim.set_param_at("-t25", 4)
-    metaSim.set_param_at("-r700", 5)
+    metaSim.set_param_at("-r2000", 5)
     metaSim.set_param_at("-c", 6)
     metaSim.set_param_at("-d", 7)
     metaSim.set_param_at(workingDir, 8)
@@ -140,33 +156,67 @@ def runMetaSim(workingFile, workingDir, debug):
 # ./MetaSim cmd --454 -f 250 -t 25 -r300 -c -d /home/sw167/Postdoc/Project_Srp/simulateData/H6a /home/sw167/Postdoc/Project_Srp/simulateData/H6a/H6a.fasta
 
 
+def runART(workingFile, art_output_prefix, debug):
+    art_infile = workingFile + ".fasta"
+
+    if os.path.exists(workingFile + "-454.fna"):
+        os.remove(workingFile + "-454.fna")
+
+
+    art = runExtProg(artDir + "./art_illumina", pdir=artDir)
+    art.set_param_at("-sam", 1)
+    art.add_switch("-i %s" % art_infile)
+    art.add_switch("-l 75")
+    art.add_switch("-f 20")
+    art.add_param("-o %s%s" % (workingFile, art_output_prefix))
+#     art.add_param("-na")
+#    print art.get_extract_switch()
+#     art.set_param_at("-c", 6)
+#     art.set_param_at("-d", 7)
+#     art.set_param_at(workingDir, 8)
+#     art.set_param_at(art_infile, 9)
+    art.run(1)
+
+# art_illumina -sam -i reference.fa -l 50 -f 10 -o single_dat
+
+
 def runShrimp(workingFile, srp_file, debug):
     shrimp_infile = workingFile + "-454.fna"
+    shrimp_infile = workingFile + "_ART.out.fasta"
     reference_file = workingFile + ".cons"
     sam_outfile = workingFile + ".sam"
-    srp_temp_file = workingFile + "_temp.fasta"
+#     srp_temp_file = workingFile + "_temp.fasta"
 
 
     shrimp = runExtProg(shrimpDir + "gmapper-ls", length=3)
     shrimp.set_param_at(shrimp_infile, 1)
     shrimp.set_param_at(reference_file, 2)
-    shrimp.set_param_at("-h 30%", 3)
+    shrimp.set_param_at("-h 10%", 3)
 #    shrimp.set_param_at("-P", 3)
     shrimp.run(debug)
 
     outfile_handle = open(sam_outfile, "w")
     outfile_handle.write(shrimp.output)
 #    print shrimp.output
+    runSam2Fasta(workingFile, "", srp_file, debug)  # untested
 
 
-    sam2fasta = runExtProg(softwareDir + "./sam2fasta.py", length=3)
+def runSam2Fasta(workingFile, samfile_prefix, srp_file, debug):
+
+    reference_file = workingFile + ".cons"
+    srp_temp_file = workingFile + "_temp.fasta"
+    sam_outfile = workingFile + samfile_prefix + ".sam"
+
+#     sam2fasta = runExtProg(softwareDir + "./sam2fasta.py", length=3)
+    sam2fasta = runExtProg("./sam2fasta_mod.py", length=3)
     sam2fasta.set_param_at(reference_file, 1)
     sam2fasta.set_param_at(sam_outfile, 2)
     sam2fasta.set_param_at(srp_temp_file, 3)
-    sam2fasta.run()
+    sam2fasta.run(1)
 
     temp_handle = open(srp_temp_file, "rU")
     srp_handle = open(srp_file, "w")
+    print reference_file, sam_outfile, srp_temp_file
 
     last_line = 0
     for i, line in enumerate(temp_handle):
@@ -180,12 +230,13 @@ def runShrimp(workingFile, srp_file, debug):
 
 def main():
 
-    prefix = "H7"
+    prefix = "H10"
     workingDir = dataDir + prefix + "/"
     workingFile = workingDir + prefix
 #    base_bssc_infile = workingFile + ".par"
 
-    for index in [12, 18, 19, 23, 26, 33, 36, 41, 43, 54, 60, 67, 68, 70, 73, 75, 89, 93]:  # range(1):
+#    for index in [12, 18, 19, 23, 26, 33, 36, 41, 43, 54, 60, 67, 68, 70, 73, 75, 89, 93]:  #
+    for index in range(0, 1):
         str_index = str(index)
 #        workingDir = dataDir + prefix + "/" + prefix + "_" + str_index + "/"
 #        workingFile = workingDir + prefix + "_" + str_index
@@ -197,20 +248,79 @@ def main():
         resultDir = workingDir + prefix_index + "/"
         if not os.path.exists(resultDir):
             os.mkdir(resultDir)
-        srp_file = resultDir + prefix_index + "_Srp.fasta"
+        srp_file = resultDir + prefix_index + "_Srp50x.fasta"
         srp_tree_file = resultDir + prefix_index + "_Srp.tree"
         srp_hap_file = resultDir + prefix_index + "_Srp_fullHaplotype.fasta"
 
+        art_output_prefix = "_ART.out"
         print index, resultDir
 
-        debug = 0
-        runBSSC(workingFile, srp_tree_file, debug)
-        runSeqGen(workingFile, srp_hap_file, debug)
+        debug = 1
+#         runBSSC(workingFile, srp_tree_file, debug)
+#         runSeqGen(workingFile, srp_hap_file, srp_tree_file, debug)
+
+#         runART(workingFile, art_output_prefix, debug)
+#         runSam2Fasta(workingFile, art_output_prefix, srp_file, debug);
+#
+#         runMetaSim(workingFile, workingDir, debug)
+        runShrimp(workingFile, srp_file, debug)
+##### old steps
+#         runBSSC(workingFile, srp_tree_file, debug)
+#         runSeqGen(workingFile, srp_hap_file, srp_tree_file, debug)
+#         runMetaSim(workingFile, workingDir, debug)
+#         runShrimp(workingFile, srp_file, debug)
+
+
+
+def mainFromAlignment():
+
+    prefix = "H7"
+    workingDir = dataDir + prefix + "/"
+    workingFile = workingDir + prefix
+#    base_bssc_infile = workingFile + ".par"
+
+#    for index in [12, 18, 19, 23, 26, 33, 36, 41, 43, 54, 60, 67, 68, 70, 73, 75, 89, 93]:  #
+    for index in range(59, 60):
+        str_index = str(index)
+#        workingDir = dataDir + prefix + "/" + prefix + "_" + str_index + "/"
+#        workingFile = workingDir + prefix + "_" + str_index
+
+#        if not os.path.exists(workingDir):
+#            os.mkdir(workingDir)
+#        shutil.copy(base_bssc_infile, workingFile + ".par")
+        prefix_index = prefix + "_" + str_index
+        resultDir = workingDir + prefix_index + "/"
+#         if not os.path.exists(resultDir):
+#             os.mkdir(resultDir)
+        workingDir = "/home/sw167/Postdoc/Project_Srp/simulateData/H7/H7_" + str_index + "/"
+        workingFile = workingDir + "H7_" + str_index + "_Srp_fullHaplotype"
+        srp_file = workingDir + "H7_" + str_index + "_Srp50x.fasta"
+#         srp_tree_file = resultDir + prefix_index + "_Srp.tree"
+#         srp_hap_file = resultDir + prefix_index + "_Srp_fullHaplotype.fasta"
+
+#         print index, resultDir
+
+        debug = 1
+#         runBSSC(workingFile, srp_tree_file, debug)
+#         runSeqGen(workingFile, srp_hap_file, srp_tree_file, debug)
+        input_handle = open(workingFile + ".fasta", "rU")
+        sequences = AlignIO.read(input_handle, "fasta")
+        input_handle.close()
+        seq = sequences[0]
+
+        ref_handle = open(workingFile + ".cons", "w")
+        ref_handle.write(">%s\n%s\n" % ("Ref", seq.seq))
+        ref_handle.close()
+
         runMetaSim(workingFile, workingDir, debug)
         runShrimp(workingFile, srp_file, debug)
 
 if __name__ == '__main__':
     main()
+#     mainFromAlignment()
+#     workingFile = "/home/sw167/Postdoc/Project_Srp/test/H1_100bp"
+#     srp_file = workingFile + "out.fasta"
+#     runShrimp(workingFile, srp_file, 1);
 
 
 
