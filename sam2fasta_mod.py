@@ -39,7 +39,7 @@ def on_ref(name, seq):
     g_ref_name = name
     g_ref_seq = seq
     g_ref_len = len(g_ref_seq)
-    append_sequence_to_output(name, seq)
+#     append_sequence_to_output(name, seq)
 
     g_padding_seq = ""
     for pos in range(len(g_ref_seq)):
@@ -82,24 +82,25 @@ def on_sam(list_sam_field):
         return
 
     sam_qname = list_sam_field[0]
-    sam_flag = int(list_sam_field[1])
+#     sam_flag = int(list_sam_field[1])
     sam_rname = list_sam_field[2]
     sam_pos = int(list_sam_field[3])
-    sam_mapq = int(list_sam_field[4])
+#     sam_mapq = int(list_sam_field[4])
     sam_cigar = list_sam_field[5]
-    sam_rnext = list_sam_field[6]
-    sam_pnext = int(list_sam_field[7])
-    sam_tlen = int(list_sam_field[8])
+#     sam_rnext = list_sam_field[6]
+#     sam_pnext = int(list_sam_field[7])
+#     sam_tlen = int(list_sam_field[8])
     sam_seq = list_sam_field[9]
-    sam_qual = list_sam_field[10]
+#     sam_qual = list_sam_field[10]
 
     if(sam_pos < 1):
         # Unmapped read
         return
 
     if(sam_rname != g_ref_name):
-        print sam_rname, len(sam_rname), g_ref_name, len(g_ref_name)
+#         print sam_rname, len(sam_rname), g_ref_name, len(g_ref_name)
 #         return
+        pass
 
     index_seq_current = 0
     seq_current = ""
@@ -126,16 +127,19 @@ def on_sam(list_sam_field):
                 seq_current += "*"
         elif(cigar_character == "N"):
             # Skipped region
+            print "Warning! cigar_character=%s" % cigar_character
             for skipped in range(cigar_number):
                 seq_current += "."
         elif(cigar_character == "S"):
             # Soft clipping, clipped sequence present in seq
+            print "Warning! cigar_character=%s" % cigar_character
             if(is_first_cigar == True):
                 sam_pos -= cigar_number
             seq_clip = sam_seq[index_seq_current:index_seq_current + cigar_number]
             seq_current += seq_clip
             index_seq_current = index_seq_current + cigar_number
         elif(cigar_character == "H"):
+            print "Warning! cigar_character=%s" % cigar_character
             # Hard clipping, clipped sequence not present in seq
             for clip in range(cigar_number):
                 seq_current += "#"

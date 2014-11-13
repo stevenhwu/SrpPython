@@ -156,12 +156,8 @@ def runMetaSim(workingFile, workingDir, debug):
 # ./MetaSim cmd --454 -f 250 -t 25 -r300 -c -d /home/sw167/Postdoc/Project_Srp/simulateData/H6a /home/sw167/Postdoc/Project_Srp/simulateData/H6a/H6a.fasta
 
 
-def runART(workingFile, art_output_prefix, debug):
+def runART(workingFile, art_output_prefix, error_free_model=True, debug=False):
     art_infile = workingFile + ".fasta"
-
-    if os.path.exists(workingFile + "-454.fna"):
-        os.remove(workingFile + "-454.fna")
-
 
     art = runExtProg(artDir + "./art_illumina", pdir=artDir)
     art.set_param_at("-sam", 1)
@@ -169,39 +165,20 @@ def runART(workingFile, art_output_prefix, debug):
     art.add_switch("-l 75")
     art.add_switch("-f 20")
     art.add_param("-o %s%s" % (workingFile, art_output_prefix))
+    if error_free_model:
+        art.add_switch("-ef")
 #     art.add_param("-na")
 #    print art.get_extract_switch()
 #     art.set_param_at("-c", 6)
 #     art.set_param_at("-d", 7)
 #     art.set_param_at(workingDir, 8)
 #     art.set_param_at(art_infile, 9)
-    art.run(1)
+    art.run(debug)
 
 # art_illumina -sam -i reference.fa -l 50 -f 10 -o single_dat
 
 
-def runShrimp(workingFile, srp_file, debug):
-    shrimp_infile = workingFile + "-454.fna"
-    shrimp_infile = workingFile + "_ART.out.fasta"
-    reference_file = workingFile + ".cons"
-    sam_outfile = workingFile + ".sam"
-#     srp_temp_file = workingFile + "_temp.fasta"
-
-
-    shrimp = runExtProg(shrimpDir + "gmapper-ls", length=3)
-    shrimp.set_param_at(shrimp_infile, 1)
-    shrimp.set_param_at(reference_file, 2)
-    shrimp.set_param_at("-h 10%", 3)
-#    shrimp.set_param_at("-P", 3)
-    shrimp.run(debug)
-
-    outfile_handle = open(sam_outfile, "w")
-    outfile_handle.write(shrimp.output)
-#    print shrimp.output
-    runSam2Fasta(workingFile, "", srp_file, debug)  # untested
-
-
-def runSam2Fasta(workingFile, samfile_prefix, srp_file, debug):
+def runSam2Fasta(workingFile, result_file_prefix, samfile_prefix, srp_read_prefix, error_free_model=True, debug=False):
 
     reference_file = workingFile + ".cons"
     srp_temp_file = workingFile + "_temp.fasta"
@@ -212,63 +189,125 @@ def runSam2Fasta(workingFile, samfile_prefix, srp_file, debug):
     sam2fasta.set_param_at(reference_file, 1)
     sam2fasta.set_param_at(sam_outfile, 2)
     sam2fasta.set_param_at(srp_temp_file, 3)
-    sam2fasta.run(1)
+    sam2fasta.run(debug)
 
-    temp_handle = open(srp_temp_file, "rU")
-    srp_handle = open(srp_file, "w")
-    print reference_file, sam_outfile, srp_temp_file
 
-    last_line = 0
-    for i, line in enumerate(temp_handle):
-        if i > 1:
-            srp_handle.write(line)
-        last_line = i
-#    print last_line / 2
-    temp_handle.close()
-    srp_handle.close()
+    shutil.copy(sam_outfile, result_file_prefix + samfile_prefix + ".sam")
+    shutil.copy(srp_temp_file, result_file_prefix + srp_read_prefix + samfile_prefix + ".fasta")
+
+    if error_free_model:
+        sam_outfile = workingFile + samfile_prefix + "_errFree.sam"
+        sam2fasta.set_param_at(sam_outfile, 2)
+        sam2fasta.run(debug)
+
+        shutil.copy(sam_outfile, result_file_prefix + samfile_prefix + "_errFree.sam")
+        shutil.copy(srp_temp_file, result_file_prefix + srp_read_prefix + samfile_prefix + "_errFree.fasta")
+
+
+
+def runShrimp(workingFile, shrimp_infile_prefix, shrimp_prefix, debug):
+    reference_file = workingFile + ".cons"
+
+    shrimp_infile = workingFile + shrimp_infile_prefix
+    sam_outfile = workingFile + shrimp_prefix + ".sam"
+
+    shrimp = runExtProg(shrimpDir + "gmapper-ls", length=3)
+    shrimp.set_param_at(shrimp_infile, 1)
+    shrimp.set_param_at(reference_file, 2)
+    shrimp.set_param_at("-h 25%", 3)
+    shrimp.add_switch("--qv-offset 33")  # # for ART output
+#     shrimp.add_switch("--ignore-qvs")
+#    shrimp.set_param_at("-P", 3)
+    shrimp.run(debug)
+
+    outfile_handle = open(sam_outfile, "w")
+    outfile_handle.write(shrimp.output)
+
+#
+# def runSam2FastaShrimp(workingFile, samfile_prefix, srp_file, debug=False):
+#
+#     reference_file = workingFile + ".cons"
+#     srp_temp_file = workingFile + "_temp.fasta"
+#     sam_outfile = workingFile + samfile_prefix + ".sam"
+#
+# #     sam2fasta = runExtProg(softwareDir + "./sam2fasta.py", length=3)
+#     sam2fasta = runExtProg("./sam2fasta_mod.py", length=3)
+#     sam2fasta.set_param_at(reference_file, 1)
+#     sam2fasta.set_param_at(sam_outfile, 2)
+#     sam2fasta.set_param_at(srp_temp_file, 3)
+#     sam2fasta.run(1)
+#
+#     temp_handle = open(srp_temp_file, "rU")
+#     srp_handle = open(srp_file, "w")
+# #     print reference_file, sam_outfile, srp_temp_file
+#
+#     last_line = 0
+#     for i, line in enumerate(temp_handle):
+#         if i > 1:
+#             srp_handle.write(line)
+#         last_line = i
+# #    print last_line / 2
+#     temp_handle.close()
+#     srp_handle.close()
+
 
 
 def main():
 
     prefix = "H10"
-    workingDir = dataDir + prefix + "/"
-    workingFile = workingDir + prefix
-#    base_bssc_infile = workingFile + ".par"
+    working_directory = os.path.join(dataDir, prefix , "")
+    working_file_prefix = os.path.join(working_directory, prefix)
+#    base_bssc_infile = working_file_prefix + ".par"
 
-#    for index in [12, 18, 19, 23, 26, 33, 36, 41, 43, 54, 60, 67, 68, 70, 73, 75, 89, 93]:  #
-    for index in range(0, 1):
+    srp_read_prefix = "_ShortRead"
+    art_prefix = "_ART"
+    shrimp_prefix = "_Shrimp"
+
+    print working_directory, working_file_prefix
+
+    for index in range(0, 10):
         str_index = str(index)
-#        workingDir = dataDir + prefix + "/" + prefix + "_" + str_index + "/"
-#        workingFile = workingDir + prefix + "_" + str_index
 
-#        if not os.path.exists(workingDir):
-#            os.mkdir(workingDir)
-#        shutil.copy(base_bssc_infile, workingFile + ".par")
+#        if not os.path.exists(working_directory):
+#            os.mkdir(working_directory)
+#        shutil.copy(base_bssc_infile, working_file_prefix + ".par")
         prefix_index = prefix + "_" + str_index
-        resultDir = workingDir + prefix_index + "/"
-        if not os.path.exists(resultDir):
-            os.mkdir(resultDir)
-        srp_file = resultDir + prefix_index + "_Srp50x.fasta"
-        srp_tree_file = resultDir + prefix_index + "_Srp.tree"
-        srp_hap_file = resultDir + prefix_index + "_Srp_fullHaplotype.fasta"
 
-        art_output_prefix = "_ART.out"
-        print index, resultDir
+        result_dir = os.path.join(working_directory, prefix_index, "")
+        result_file_prefix = os.path.join(result_dir, prefix_index)
+        print index, result_dir, result_file_prefix
 
-        debug = 1
-#         runBSSC(workingFile, srp_tree_file, debug)
-#         runSeqGen(workingFile, srp_hap_file, srp_tree_file, debug)
+        if not os.path.exists(result_dir):
+            os.mkdir(result_dir)
 
-#         runART(workingFile, art_output_prefix, debug)
-#         runSam2Fasta(workingFile, art_output_prefix, srp_file, debug);
+        srp_tree_file = result_file_prefix + "_FullTree.tree"
+        srp_hap_file = result_file_prefix + "_FullHaplotype.fasta"
+
+#         srp_read_file_prefix = result_file_prefix + srp_read_prefix
+        debug = 0
+
+        error_free_model = True
+        runBSSC(working_file_prefix, srp_tree_file, debug)
+        runSeqGen(working_file_prefix, srp_hap_file, srp_tree_file, debug)
 #
-#         runMetaSim(workingFile, workingDir, debug)
-        runShrimp(workingFile, srp_file, debug)
+        runART(working_file_prefix, art_prefix, error_free_model, debug)
+        runSam2Fasta(working_file_prefix, result_file_prefix, art_prefix, srp_read_prefix, error_free_model, debug)
+
+        shrimp_infile = art_prefix + ".fq"
+        runShrimp(working_file_prefix, shrimp_infile, shrimp_prefix, debug)
+        error_free_model = False
+        runSam2Fasta(working_file_prefix, result_file_prefix, shrimp_prefix, srp_read_prefix, error_free_model, debug)
+
 ##### old steps
-#         runBSSC(workingFile, srp_tree_file, debug)
-#         runSeqGen(workingFile, srp_hap_file, srp_tree_file, debug)
-#         runMetaSim(workingFile, workingDir, debug)
-#         runShrimp(workingFile, srp_file, debug)
+
+#         runMetaSim(working_file_prefix, working_directory, debug)
+#         shrimp_infile = "-454.fna"  # metaSim
+#         runShrimp(working_file_prefix, shrimp_infile, "_metaSim", debug)
+
+#         runBSSC(working_file_prefix, srp_tree_file, debug)
+#         runSeqGen(working_file_prefix, srp_hap_file, srp_tree_file, debug)
+#         runMetaSim(working_file_prefix, working_directory, debug)
+#         runShrimp(working_file_prefix, srp_file, debug)
 
 
 
